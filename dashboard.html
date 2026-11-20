@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Payment Recovery</title>
+<style>
+  :root { --bg:#0f1220; --card:#181c30; --text:#e7e9f3; --muted:#8a90ad; --ok:#3ecf8e; --warn:#f5a524; --bad:#f25f5c; }
+  body { margin:0; font:14px system-ui, sans-serif; background:var(--bg); color:var(--text); padding:24px 16px; }
+  h1 { font-size:20px; margin:0 0 16px; }
+  .kpis { display:grid; grid-template-columns:repeat(auto-fit, minmax(160px, 1fr)); gap:12px; margin-bottom:20px; }
+  .kpi { background:var(--card); border-radius:10px; padding:14px; }
+  .kpi b { display:block; font-size:26px; margin-top:4px; }
+  .kpi span { color:var(--muted); }
+  .wrap { overflow-x:auto; background:var(--card); border-radius:10px; }
+  table { border-collapse:collapse; width:100%; min-width:760px; }
+  th, td { text-align:left; padding:8px 10px; border-bottom:1px solid #262b45; vertical-align:top; }
+  th { color:var(--muted); font-weight:500; }
+  .recovered { color:var(--ok); } .link_sent { color:var(--warn); } .manual_review, .failed { color:var(--bad); }
+  details summary { cursor:pointer; color:var(--muted); }
+  pre { white-space:pre-wrap; overflow-wrap:anywhere; max-width:420px; margin:6px 0 0; font-size:12px; }
+</style>
+</head>
+<body>
+<h1>Payment Recovery Agent</h1>
+<div class="kpis" id="kpis"></div>
+<div class="wrap"><table>
+  <thead><tr><th>Time</th><th>Customer</th><th>Amount</th><th>Decline</th><th>Category</th><th>Status</th><th>Logs</th></tr></thead>
+  <tbody id="rows"></tbody>
+</table></div>
+<script>
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+async function load() {
+  const r = await fetch(location.origin + "/api/metrics");  // origin has no user:pass, so this works even if the page URL does
+  if (!r.ok) return;
+  const m = await r.json();
+  const kpi = (label, val) => `<div class="kpi"><span>${label}</span><b>${val}</b></div>`;
+  document.getElementById("kpis").innerHTML =
+    kpi("Failures (30d)", m.total) + kpi("Recovered", m.recovered) +
+    kpi("Recovery rate", m.recovery_rate + "%") + kpi("Recovered amount", (m.recovered_amount / 100).toFixed(2)) +
+    Object.entries(m.by_status).map(([s, n]) => kpi(s, n)).join("");
+  // keep expanded logs open across the 5s refresh
+  const open = new Set([...document.querySelectorAll("details[open]")].map(d => d.dataset.id));
+  document.getElementById("rows").innerHTML = m.rows.map(x => `<tr>
+    <td>${esc(new Date(x.created_at).toLocaleString())}</td><td>${esc(x.customer_id)}</td>
+    <td>${(x.amount / 100).toFixed(2)} ${esc((x.currency || "").toUpperCase())}</td>
+    <td>${esc(x.decline_code)}</td><td title="${esc(x.root_cause)}">${esc(x.category)}</td>
+    <td class="${esc(x.status)}">${esc(x.status)}</td>
+    <td><details data-id="${esc(x.id)}" ${open.has(String(x.id)) ? "open" : ""}><summary>${(x.logs || []).length} entries</summary><pre>${esc((x.logs || []).join("\n"))}</pre></details></td>
+  </tr>`).join("");
+}
+load(); setInterval(load, 5000);
+</script>
+</body>
+</html>

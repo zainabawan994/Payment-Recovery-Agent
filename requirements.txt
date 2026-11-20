@@ -1,0 +1,10 @@
+fastapi
+uvicorn
+python-dotenv
+stripe
+google-genai
+langgraph
+supabase
+voyageai
+httpx
+pytest
